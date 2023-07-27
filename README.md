@@ -16,6 +16,7 @@ The package is lightweight, and requires only few extra packages. These are:
 * pandas >= 1.4.1
 * matplotlib >= 3.4.2
 
+
 The recommended minimum version of Python is 3.8.12.
 If you're using CNVPytor, you likely already have everything you need.
 
