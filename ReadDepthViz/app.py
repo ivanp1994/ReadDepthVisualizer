@@ -51,6 +51,34 @@ def select_file():
             file_path=None
     return file_path,sep
 
+def chunkify_cnvs(row,size):
+    """
+    Breaks up bigger CNVs into smaller segments
+    For example, a CNV:
+        >>> [0 1000]
+    will be broken up into
+        >>> [0,500], [500,1000]
+    """
+    chrom = row.chrom
+    start = row.start
+    end = row.end
+    
+    ran = [x for x in range(start,end,size)]
+    starts = ran[:-1]
+    ends = ran[1:]
+    chrom = ["NC_064425.1"]*len(starts)
+    return list(zip(chrom,starts,ends,))
+
+def convert_cnvs_to_list(cnv_df,lower_limit,upper_limit):
+    "convers CNV dataframe to a list of [chrom,start,end]"
+    #filter out small CNVS
+    cnv_df = cnv_df[cnv_df["size"]>lower_limit] #87747 -> 87403
+    #filter out big CNVS
+    cnv_l = cnv_df[cnv_df["size"]<upper_limit][["chrom","start","end"]].values.tolist()
+    #break up big CNVs
+    cnv_l2 = cnv_df[cnv_df["size"]>upper_limit].apply(chunkify_cnvs,axis=1,size=upper_limit).tolist()
+    return cnv_l + cnv_l2
+
 
 class QueueHandler(logging.Handler):
     """Class to send logging records to a queue
@@ -127,6 +155,7 @@ class MainInterface():
         self.data_paths = None
         self.file_path = "data.rd"
         self.cnv = None #not necessary as of now
+        self.cnvindex = None #for iterating over cnv list
         self.status = None #necessary, but make it not
         self.gcf = None #optional parameter
         self.assembly = None # DataFrame
@@ -138,6 +167,7 @@ class MainInterface():
         self.popup_axes = None #popup menu to choose samples
         self.popup_track = None #popup menu to choose track
         self.canvas_frame = tk.Frame(master=self.master,width=800,height=800)
+        self.coord_display = None #displays coordinates
         self.logger = logging.getLogger()
 
         self.parameters = {"data":None,
@@ -207,6 +237,7 @@ class MainInterface():
                          "start":start_option,
                          "end":end_option}
         tk.Button(master=command_frame, command=self.plot_region, text = "Draw").grid(row=0,column=6,sticky="nse")
+        tk.Button(master=command_frame,command=self.get_cnvcoords, text = "CNV").grid(row=0,column=7,sticky="nse")
 
         #PLACE FRAMES
         command_frame.grid(row=1,column=0,sticky="w")
@@ -284,27 +315,56 @@ class MainInterface():
             #t.start()
             Thread(target=self._add_data,kwargs=params).start()
 
-    def add_cnv(self):
-        "Adds CNVs but don't know what to do with this just yet"
-        if self.data_paths is None:
-            self.add_data()
-
-        params = self.parameters["data"]
-        if params is None:
-            params = dict()
-        params.update({"pytor_files":self.data_paths,"output":None,"ret":True})
-
-        self.cnv = write_cnv_call_file(**params)
-        self.logger.info("Loaded CNVs")
-
     def add_metadata(self):
         "Adds metadata - data with information about samples"
         file_path,sep = select_file()
         if file_path:
             self.status = pd.read_csv(file_path,sep=sep)
             self.determine_sample_col()
-
         self.logger.error("Added metadata")
+    
+    def _add_cnv(self):
+        "Adds CNVs but don't know what to do with this just yet"
+        params = self.parameters["data"]
+        if params is None:
+            params = dict()
+        params.update({"pytor_files":self.data_paths,"output":None,"ret":True})
+
+        cnvdf = write_cnv_call_file(**params)
+        self.cnv = convert_cnvs_to_list(cnvdf,1000,100000)
+        self.cnvindex = 0
+        self.logger.info("Loaded CNVs")
+    
+    def add_cnv(self):
+        """wrapper around _cnv for thread safe logging"""
+        if self.cnv is None and self.data_paths is not None:
+            Thread(target=self._add_cnv).start()
+        if self.cnv is None:
+            ...
+            #log cannot get cnv because no data blah
+        
+    def get_cnvcoords(self):
+        "gets CNV coordinates of the next CNV and draws it"
+        if self.cnv is None:
+            #logger blabla
+            return
+        chrom,start,end = self.cnv[self.cnvindex]
+        #print(chrom,start,end)
+        self.cnvindex = self.cnvindex + 1
+        if self.cnvindex == len(self.cnv):
+            self.cnvindex = 0
+        #set commands and plot region
+        chrom_com = self.commands["chrom"]
+        start_com = self.commands["start"]
+        end_com = self.commands["end"]
+        
+        chrom_com.variable.set(chrom)
+        for value,com in zip([start,end],[start_com,end_com]):
+            com.entry.delete(0,tk.END)
+            com.entry.insert(0,f"{value}")
+        
+        self.plot_region()
+    
 # SETTING PARAMETERS
     def set_data_params(self):
         "enters parameters"
@@ -369,6 +429,8 @@ class MainInterface():
         fig = self.plotter.figure
         if self.canvas is not None:
             self.canvas.get_tk_widget().destroy()
+        if self.coord_display is not None:
+            self.coord_display.destroy()
 
         self.canvas = FigureCanvasTkAgg(fig, master=self.canvas_frame)
         #the bottom numbers are magical to expand figure to canvas
@@ -380,7 +442,8 @@ class MainInterface():
         self.canvas.mpl_connect("button_press_event",self.canvas_key_press)
         self.canvas.mpl_connect("motion_notify_event",self.mouse_motion)
         self.message = tk.StringVar()
-        tk.Label(master=self.canvas_frame,textvariable=self.message).grid(row=1,column=0)
+        self.coord_display = tk.Label(master=self.canvas_frame,textvariable=self.message)
+        self.coord_display.grid(row=1,column=0)
 
     def plot_region(self,*args):
         "plots a region"""
@@ -501,16 +564,23 @@ class MainInterface():
         """updates toolbar to show coordinate of a mouse"""
         ax = event.inaxes
         gridaxes = [v for k,v in self.plotter.axes_dict.items() if k!="Track"]
-        if ax not in gridaxes:
-            return
+        if not ax:
+            #displays nothing
+            self.message.set("")
+            return 
+        
         x = chr_len_form(event.xdata,None)
-
+        if ax not in gridaxes:
+            #destroys the coordinate display
+            self.message.set(f"Genome position: {x}")
+            return
+        
         string = f"Genome position: {x} \t\t Diploid copy number {event.ydata:.1f}"
         self.message.set(string)
 
 def preload(minf):
     "preloads the function"
-    minf.status = pd.read_csv("data/linker.csv")[["Sample Name","dwelling","lineage","region"]]
+    minf.status = pd.read_csv("data/metadata.csv")[["Sample Name","dwelling","lineage","region"]]
     minf.genes = pd.read_csv("data/feature.csv")
     minf.assembly = pd.read_csv("data/assembly.csv")
     minf.exons = pd.read_csv("data/exons.csv")

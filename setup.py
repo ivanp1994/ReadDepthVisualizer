@@ -11,7 +11,7 @@ with open("README.md", "r") as _f:
     long_description = _f.read()
     
 setup(name="RDViz",
-      version="0.0.1",
+      version="0.0.2",
       description="GUI for visualization of RD signal from CNVPytor HDF files",
       package_dir = {"RDViz":"ReadDepthViz"},
       package_data = {"RDViz":["data/*","data/pytor/*"]},
