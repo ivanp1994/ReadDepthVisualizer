@@ -2,7 +2,7 @@
 """
 Main wrapper
 """
-
+import time
 import os
 import logging
 import tkinter as tk
@@ -448,6 +448,9 @@ class MainInterface():
 
     def plot_region(self,*args):
         "plots a region"""
+        
+        _start = time.time()
+        
         #initialize plotter if it's not initialized
         #clear ax if plotter is initialized
         if self.plotter is not None:
@@ -488,7 +491,9 @@ class MainInterface():
         if self.plotter.track_lines is not None:
             tracklines ={k:v for k,v in self.plotter.track_lines.items() if v is not None}
             self.popup_track = PopupMenu(self.master,tracklines,self.canvas)
-
+        end = time.time()
+        delta = end - start
+        print(f"{delta:.4f} seconds")
     def _canvas_key_release(self,event,start):
         "zooms in the data"
         start = int(start)

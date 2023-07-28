@@ -9,9 +9,9 @@ For details, see docs on ReadDepthDrawer
 import logging
 import pandas as pd
 import matplotlib
+matplotlib.use('agg')
 import matplotlib.pyplot as plt
 from .genotyping import get_rd_region
-
 matplotlib.style.use("ggplot")
 COLORS = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
@@ -457,8 +457,9 @@ class ReadDepthDrawer():
 
     def clear_ax(self):
         "clears axes"
-        for ax in self.axes_dict.values():
-            ax.clear()
+        #for ax in self.axes_dict.values():
+        #    ax.clear()
+        plt.close(self.figure)
 
     def add_legend(self,ax):
         "adds legend"
