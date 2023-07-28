@@ -340,13 +340,14 @@ class MainInterface():
         if self.cnv is None and self.data_paths is not None:
             Thread(target=self._add_cnv).start()
         if self.cnv is None:
-            ...
+            self.logger.error("Cannot add CNV data without HDF files - Add HDF files to use this functionality")
+            return
             #log cannot get cnv because no data blah
         
     def get_cnvcoords(self):
         "gets CNV coordinates of the next CNV and draws it"
         if self.cnv is None:
-            #logger blabla
+            self.logger.error("No CNV data - load CNV data to use this functionality")
             return
         chrom,start,end = self.cnv[self.cnvindex]
         #print(chrom,start,end)
@@ -568,7 +569,6 @@ class MainInterface():
             #displays nothing
             self.message.set("")
             return 
-        
         x = chr_len_form(event.xdata,None)
         if ax not in gridaxes:
             #destroys the coordinate display
