@@ -34,6 +34,7 @@ start_function()
 ```
 # Usage
 Once the package is installed, simply import `start_function` from it and the GUI loop will start.
+Alternatively, use `rdviz` straight from the command line and GUI loop will start.
 
 # Prior requirements
 The package is written to take the outputs of CNVPytor files and visualize the information within them. Briefly, CNVPytor is a read-depth based SV calling software
