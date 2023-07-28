@@ -13,8 +13,8 @@ with open("README.md", "r") as _f:
 setup(name="RDViz",
       version="0.0.2",
       description="GUI for visualization of RD signal from CNVPytor HDF files",
-      package_dir = {"RDViz":"ReadDepthViz"},
-      package_data = {"RDViz":["data/*","data/pytor/*"]},
+      package_dir = {"rdviz":"ReadDepthViz"},
+      package_data = {"rdviz":["data/*","data/pytor/*"]},
       long_description=long_description,
       long_description_content_type='text/markdown',
       url="https://github.com/ivanp1994/ReadDepthVisualizer.git",
@@ -31,5 +31,10 @@ setup(name="RDViz",
                           "pandas >= 1.4.1",
                           "matplotlib >= 3.4.2",
                           ],
-      python_requires=">=3.8.12"
+      python_requires=">=3.8.12",
+      entry_points={
+          'console_scripts': [
+              'rdviz = rdviz:start_function'
+          ]
+          }
       )
